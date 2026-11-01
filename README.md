@@ -1,51 +1,191 @@
-# Tracepoint frontend preview
+# Tracepoint
 
-## Frontend architecture
+Tracepoint is a clean, minimal packet-analysis web app that turns raw PCAP captures into readable event rows. It is built for beginners and students who may find Wireshark overwhelming, so it shows only the information they need and hides deep packet-level noise by default.
 
-- `index.html` contains the large upload hero, event table, filter bar, CSV export button, and centered details modal.
-- `app.js` handles upload requests, the demo endpoint, response rendering, search and filters, CSV export, and row details.
-- `styles.css` contains the responsive styling and the shared severity/color tokens.
-- The UI uses the backend event response as its data source. It does not create or modify analysis events.
+## What it does
 
-The upload flow sends a selected `.pcap`, `.pcapng`, or `.cap` file as multipart field `file` to `POST /api/pcap/analyze`. For a no-file preview, the **Load demo analysis** button reads `GET /api/events/demo`. The filter bar can narrow the backend events by protocol, severity, source, destination, time range, or a general search. **Export CSV** downloads the rows currently visible after all filters.
+Tracepoint accepts a packet capture file and converts it into a simplified analysis view similar to Wireshark, but easier to read.
 
-## Run locally on Windows
+It can:
+- accept `.pcap`, `.pcapng`, and `.cap` files
+- parse packet data into structured JSON
+- group related packets into higher-level events
+- display event rows in a table
+- open a centered details modal for each event
+- filter results by protocol, severity, source IP, destination IP, and time range
+- search visible events
+- export the current table view as CSV
 
-Use two PowerShell terminals.
+## Why the interface is grouped and simplified
 
-**Terminal 1 — start FastAPI** (install dependencies first if this environment has not been set up):
+Packet captures can be noisy and difficult to read, especially for new users. Tracepoint groups related traffic into compact event rows so the interface stays readable and focused.
 
-```powershell
-cd C:\Users\write\cyber-hackathon-codex\backend
-py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+This design helps users quickly understand:
+- what happened
+- which packets belong together
+- whether something looks like a normal fault or a possible attack
+- what they should check next
+
+The goal is to keep the analysis useful without exposing beginners to too much technical detail at once.
+
+## Main features
+
+### Upload and analysis
+Users can drag and drop a capture file into the upload area or click the upload zone to open the file picker. After upload, the capture is sent to the backend for parsing and analysis.
+
+### Grouped event table
+The frontend shows analyzed traffic as compact event rows instead of raw packet noise. Related packets are grouped into a single event where appropriate, such as:
+- TCP 3-way handshakes
+- DNS query and response pairs
+- HTTP request and response pairs
+- possible scan bursts
+- possible DoS / DDoS bursts
+
+### Event details modal
+Clicking an event row opens a centered modal with useful context such as:
+- event title
+- severity
+- protocol
+- time
+- source and destination
+- packet count
+- packet numbers or packet range
+- grouped context
+- explanation and suggested response
+
+### Filters and search
+The event list can be filtered using:
+- protocol
+- severity
+- source IP
+- destination IP
+- time range
+- search text
+
+### CSV export
+The visible rows can be exported as a CSV file for sharing or later review.
+
+## How it works
+
+Tracepoint follows a simple pipeline:
+
+1. The user uploads a PCAP file.
+2. The backend parses the capture into normalized packet data.
+3. Packets are grouped into events.
+4. The analysis layer classifies the event as a likely fault, possible attack, or needs review.
+5. The frontend displays the results in a readable table.
+6. Clicking a row opens a modal with details and suggested action.
+
+## Faults vs attacks
+
+Tracepoint is designed to distinguish between:
+- **faults** such as TCP retransmissions, resets, DNS failures, duplicate IPs, ARP conflicts, MTU mismatches, and unusual delays
+- **possible attacks** such as port scans, ARP spoofing, DNS hijacking, rogue DHCP servers, DoS, and DDoS
+
+Each finding includes a short explanation and a practical next step.
+
+## Project structure
+
+A typical layout is:
+
+```text
+.
+├── index.html
+├── styles.css
+├── app.js
+├── README.md
+└── backend/
+    ├── main.py
+    ├── parser.py
+    ├── analyzer.py
+    └── requirements.txt
 ```
 
-If the backend virtual environment already exists, start it with:
+## Setup
 
-```powershell
-cd C:\Users\write\cyber-hackathon-codex\backend
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+### 1. Clone or download the project
+Make sure the frontend and backend files are available locally.
+
+### 2. Install dependencies
+
+If the project uses a Python backend, install the backend requirements:
+
+```bash
+pip install -r backend/requirements.txt
 ```
 
-**Terminal 2 — serve the frontend files**:
+If the frontend is served as a static site, no additional build step is required unless a bundler is being used.
 
-```powershell
-cd C:\Users\write\cyber-hackathon-codex
-py -m http.server 5173
+### 3. Configure the backend URL
+
+If the frontend talks to a local backend, update the API base URL in the frontend code if needed.
+
+Common example:
+
+```text
+http://127.0.0.1:8000
 ```
 
-Open **http://127.0.0.1:5173**. Confirm the first view has only the large centered upload hero, with its heading on one line. Click **Load demo analysis** to check that the page scrolls into five rows: two separate scan rows, a handshake, DNS, and HTTP. The scan rows show an ellipsis in Packet No.; hover the ellipsis after clicking it to see the full packet list. Try the filters, open and dismiss a modal, then export the visible rows as CSV. For an actual capture, click anywhere in the drop area or use **Browse files**.
+## Run the project
 
-The demo endpoint itself is also viewable as JSON at **http://127.0.0.1:8000/api/events/demo**. The API documentation at **http://127.0.0.1:8000/docs** lets you inspect and call the backend routes.
+### Backend
+Start the Python FastAPI backend:
 
-## Preview layout
+```bash
+uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+```
 
-The landing view centers a large drag-and-drop upload hero, scaled to 90% overall with a one-line headline. The empty analysis hint sits lower on the page so the initial view stays focused on the hero. After upload, the page scrolls to the grouped event rows. S. No. and Packet No. sit side by side; groups of more than three packets use a clickable ellipsis that reveals their complete packet-number list while hovered. Reciprocal port scans remain separate rows. The filter bar narrows rows by protocol, severity, source/destination IP, time range, and search. Clicking a row opens a centered modal; click outside, use the close button, or press Escape to dismiss it. The modal includes protocol context, packet group details, detection reasoning, and response suggestions where supported. The HTTP modal displays full request/response text when the API provides it; the current parser does not yet provide HTTP payload text. Directory scans cannot be represented until the backend includes URL/path metadata and emits those events.
+### Frontend
+Serve the frontend with any local static server. One simple option is:
 
-Event colors are mapped for quick scanning: neutral for ordinary traffic, teal for handshakes, purple for DNS, cyan for HTTP, amber for possible scans, and red for possible DoS/DDoS or high-severity activity. **Export CSV** downloads the currently filtered rows, including compact packet ranges.
+```bash
+python -m http.server 5173
+```
 
-## Frontend hosting link
+Then open:
 
-**Local preview only:** http://127.0.0.1:5173 (after running the frontend command above). No hosted frontend deployment is configured yet.
+```text
+http://127.0.0.1:5173
+```
+
+If the frontend is already wired into a dev server, use that server instead.
+
+## How to use
+
+1. Open the app in a browser.
+2. Drop a PCAP file into the upload area or click the upload zone.
+3. Wait for the capture to be processed.
+4. Review the grouped event rows in the table.
+5. Use the filters and search bar to narrow results.
+6. Click any row to open the details modal.
+7. Export the visible rows as CSV if needed.
+
+## File format support
+
+Supported input formats:
+- `.pcap`
+- `.pcapng`
+- `.cap`
+
+## Notes
+
+- The app is intended for lab, sample, or authorized packet captures only.
+- The analysis logic is deliberately simplified for readability and hackathon use.
+- The output is designed to be understandable for beginners while still being useful for inspection and demo purposes.
+
+## Tech stack
+
+- HTML
+- CSS
+- JavaScript
+- Python
+- FastAPI
+- PCAP parsing and analysis libraries as used in the backend
+
+## License
+
+Add a license here if needed for the submission or repository.
+
+## Demo
+
+Add the demo video link here if the hackathon submission requires one.
